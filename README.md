@@ -1,1 +1,1 @@
-# DetentionSystemCore
+# XueWuSystemCore
