@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Text;
 
@@ -65,7 +66,7 @@ namespace DetentionSystemCore
         public bool GetAPI(string api, out string result)
             => GetRequest(new Uri(base_uri, api), _cookieContainer, out result);
 
-        public static bool PostRequest(Uri uri, CookieContainer cookieContainer, string data, out string result)
+        public static bool PostRequest(Uri uri, CookieContainer cookieContainer, Dictionary<string, string> formData, out string result)
         {
             try
             {
@@ -73,26 +74,48 @@ namespace DetentionSystemCore
 
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(uri);
                 request.Method = "POST";
-                request.ContentType = "application/x-www-form-urlencoded";
                 request.CookieContainer = cookieContainer;
 
-                byte[] byteData = Encoding.UTF8.GetBytes(data);
-                request.ContentLength = byteData.Length;
-
-                using (var stream = request.GetRequestStream())
+                if (formData == null)
                 {
-                    stream.Write(byteData, 0, byteData.Length);
-                }
-
-                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
-                {
-                    using (var reader = new System.IO.StreamReader(response.GetResponseStream()))
+                    using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
                     {
-                        result = reader.ReadToEnd();
+                        using (var reader = new System.IO.StreamReader(response.GetResponseStream()))
+                        {
+                            result = reader.ReadToEnd();
+                        }
+
+                        // Update cookies
+                        cookieContainer.Add(response.Cookies);
+                    }
+                }
+                else
+                {
+                    request.ContentType = "multipart/form-data";
+
+                    StringBuilder postData = new StringBuilder();
+                    foreach (var kvp in formData)
+                    {
+                        postData.Append($"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}&");
+                    }
+                    byte[] byteData = Encoding.UTF8.GetBytes(postData.ToString().TrimEnd('&'));
+                    request.ContentLength = byteData.Length;
+
+                    using (var stream = request.GetRequestStream())
+                    {
+                        stream.Write(byteData, 0, byteData.Length);
                     }
 
-                    // Update cookies
-                    cookieContainer.Add(response.Cookies);
+                    using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                    {
+                        using (var reader = new System.IO.StreamReader(response.GetResponseStream()))
+                        {
+                            result = reader.ReadToEnd();
+                        }
+
+                        // Update cookies
+                        cookieContainer.Add(response.Cookies);
+                    }
                 }
 
                 return true;
@@ -104,14 +127,14 @@ namespace DetentionSystemCore
             }
         }
 
-        public static bool PostAPI(string account, string data, out string result, Uri base_uri, string api = "/DSAI/")
-            => PostRequest(new Uri(base_uri, api), GetCookieContainerWithAccCookie(account), data, out result);
+        public static bool PostAPI(string account, Dictionary<string, string> formData, out string result, Uri base_uri, string api = "/DSAI/")
+            => PostRequest(new Uri(base_uri, api), GetCookieContainerWithAccCookie(account), formData, out result);
 
-        public static bool PostAPI(string account, string data, out string result, string api = "/DSAI/")
-            => PostAPI(account, data, out result, base_uri, api);
+        public static bool PostAPI(string account, Dictionary<string, string> formData, out string result, string api = "/DSAI/")
+            => PostAPI(account, formData, out result, base_uri, api);
 
-        public bool PostAPI(string api, string data, out string result)
-            => PostRequest(new Uri(base_uri, api), _cookieContainer, data, out result);
+        public bool PostAPI(string api, Dictionary<string, string> formData, out string result)
+            => PostRequest(new Uri(base_uri, api), _cookieContainer, formData, out result);
 
         public static bool TestAPI(string account, Uri base_uri)
         {
