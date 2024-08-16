@@ -1,13 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using System.Runtime.CompilerServices;
-using System.ServiceModel;
-using System.ServiceModel.Channels;
 using System.Text;
-using System.Threading.Tasks;
-using Windows.Web.AtomPub;
 
 namespace DetentionSystemCore
 {
@@ -34,7 +27,7 @@ namespace DetentionSystemCore
             this.account = account;
         }
 
-        public static bool SendRequest(Uri uri, CookieContainer cookieContainer, out string result)
+        public static bool GetRequest(Uri uri, CookieContainer cookieContainer, out string result)
         {
             try
             {
@@ -64,13 +57,61 @@ namespace DetentionSystemCore
         }
 
         public static bool GetAPI(string account, out string result, Uri base_uri, string api = "/DSAI/")
-            => SendRequest(new Uri(base_uri, api), GetCookieContainerWithAccCookie(account), out result);
+            => GetRequest(new Uri(base_uri, api), GetCookieContainerWithAccCookie(account), out result);
 
         public static bool GetAPI(string account, out string result, string api = "/DSAI/")
             => GetAPI(account, out result, base_uri, api);
 
         public bool GetAPI(string api, out string result)
-            => SendRequest(new Uri(base_uri, api), _cookieContainer, out result);
+            => GetRequest(new Uri(base_uri, api), _cookieContainer, out result);
+
+        public static bool PostRequest(Uri uri, CookieContainer cookieContainer, string data, out string result)
+        {
+            try
+            {
+                result = string.Empty;
+
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(uri);
+                request.Method = "POST";
+                request.ContentType = "application/x-www-form-urlencoded";
+                request.CookieContainer = cookieContainer;
+
+                byte[] byteData = Encoding.UTF8.GetBytes(data);
+                request.ContentLength = byteData.Length;
+
+                using (var stream = request.GetRequestStream())
+                {
+                    stream.Write(byteData, 0, byteData.Length);
+                }
+
+                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                {
+                    using (var reader = new System.IO.StreamReader(response.GetResponseStream()))
+                    {
+                        result = reader.ReadToEnd();
+                    }
+
+                    // Update cookies
+                    cookieContainer.Add(response.Cookies);
+                }
+
+                return true;
+            }
+            catch (WebException)
+            {
+                result = null;
+                return false;
+            }
+        }
+
+        public static bool PostAPI(string account, string data, out string result, Uri base_uri, string api = "/DSAI/")
+            => PostRequest(new Uri(base_uri, api), GetCookieContainerWithAccCookie(account), data, out result);
+
+        public static bool PostAPI(string account, string data, out string result, string api = "/DSAI/")
+            => PostAPI(account, data, out result, base_uri, api);
+
+        public bool PostAPI(string api, string data, out string result)
+            => PostRequest(new Uri(base_uri, api), _cookieContainer, data, out result);
 
         public static bool TestAPI(string account, Uri base_uri)
         {
