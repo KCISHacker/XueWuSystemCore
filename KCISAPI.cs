@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Text;
 
@@ -141,31 +142,25 @@ namespace DetentionSystemCore
                 }
                 else
                 {
-                    request.ContentType = "multipart/form-data";
+                    var boundary = "---------------------------" + DateTime.Now.Ticks.ToString("x");
 
-                    StringBuilder postData = new StringBuilder();
-                    foreach (var kvp in formData)
-                    {
-                        postData.Append($"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}&");
-                    }
-                    byte[] byteData = Encoding.UTF8.GetBytes(postData.ToString().TrimEnd('&'));
-                    request.ContentLength = byteData.Length;
+                    request.ContentType = "multipart/form-data; boundary=" + boundary;
 
-                    using (var stream = request.GetRequestStream())
+                    using (var requestStream = request.GetRequestStream())
                     {
-                        stream.Write(byteData, 0, byteData.Length);
-                    }
-
-                    using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
-                    {
-                        using (var reader = new System.IO.StreamReader(response.GetResponseStream()))
+                        foreach (var entry in formData)
                         {
-                            result = reader.ReadToEnd();
+                            var fieldPart = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"" + entry.Key + "\"\r\n\r\n" + entry.Value + "\r\n";
+                            var fieldBytes = Encoding.UTF8.GetBytes(fieldPart);
+                            requestStream.Write(fieldBytes, 0, fieldBytes.Length);
                         }
 
-                        // Update cookies
-                        cookieContainer.Add(response.Cookies);
-                    }
+                        var endBoundaryBytes = Encoding.UTF8.GetBytes("\r\n--" + boundary + "--\r\n");
+                        requestStream.Write(endBoundaryBytes, 0, endBoundaryBytes.Length);
+                        var resp = request.GetResponse();
+                        var response = (HttpWebResponse)resp;
+                        result = new StreamReader(response.GetResponseStream()).ReadToEnd();
+                    }   
                 }
 
                 return true;
